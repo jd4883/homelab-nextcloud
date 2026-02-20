@@ -79,7 +79,7 @@ nextcloud:
       domain: gmail.com
       smtp:
         port: 587
-        secure: tls   # STARTTLS (preferred over 465/ssl)
+        secure: tls   # STARTTLS — better security than 465/ssl (explicit TLS upgrade on 587)
         authtype: LOGIN
     extraEnv:
       - name: SMTP_NAME
@@ -107,6 +107,7 @@ nextcloud:
       runAsGroup: 1000
       runAsNonRoot: true
   affinity:
+    # Prefer colocating with database nodes (soft); fine to remove or keep when using dedicated DB nodes.
     nodeAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
         - weight: 100

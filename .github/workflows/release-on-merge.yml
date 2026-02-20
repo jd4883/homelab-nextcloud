@@ -1,0 +1,51 @@
+# Auto-release on merge to main: bump patch version, create tag and release.
+# Triggers Helm publish and release notes when used with other workflows (see .github/workflows/README.md).
+# Uses reusable action from github-actions repo. Requires: default branch is main; tags exist as v* (e.g. v0.1.0).
+#
+# Only chart/content paths below; do NOT include .github/** so that workflow-only changes do not trigger a release.
+
+name: Release on merge to main
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'helm/Chart.yaml'
+      - 'helm/Chart.lock'
+      - 'helm/values.yaml'
+      - 'helm/README.md'
+      - 'helm/charts/**'
+  workflow_dispatch:
+
+concurrency: release-on-merge
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: "v3.14.0"
+      - name: Lint chart
+        run: |
+          cd helm
+          helm dependency update .
+          helm lint .
+
+  release:
+    needs: lint
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Release on merge (create tag and release)
+        uses: expectedbehaviors/github-actions/.github/actions/release-on-merge@main
+        id: release
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
