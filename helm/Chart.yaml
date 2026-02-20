@@ -1,8 +1,10 @@
 apiVersion: v2
 name: nextcloud
 description: Nextcloud on Kubernetes (official chart + External Secrets from 1Password). External PostgreSQL and Redis; deploy DB/Redis via operators and connect later.
+type: application
 version: 0.1.0
 appVersion: "32.0.6"
+kubeVersion: ">=1.22.0-0"
 keywords:
   - nextcloud
   - storage

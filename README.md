@@ -46,7 +46,7 @@ Mail “From” is from values: **fromAddress** + **domain** (e.g. `expectedbeha
 Use the **exact 1Password field labels** in the “Secrets you need” table above. The ExternalSecret templates map those labels into K8s secret keys the chart expects (e.g. 1Password `username` → K8s key `nextcloud-username`). Override mappings via `externalSecrets.<name>.data.<key>.property` in values if needed.
 
 **Gmail SMTP (gmail-ticket-system)**  
-SMTP is enabled by default from 1Password item **gmail-ticket-system**: field `username` (e.g. expectedbehaviors@gmail.com), `nextcloud_app_password`, and `host` (e.g. smtp.gmail.com). extraEnv injects these from the nextcloud-smtp secret; Reloader includes nextcloud-smtp.
+SMTP is enabled by default from 1Password item **gmail-ticket-system**: field `username` (e.g. expectedbehaviors@gmail.com), `nextcloud_app_password`, and `host` (e.g. smtp.gmail.com). extraEnv injects these from the nextcloud-smtp secret; Reloader includes nextcloud-smtp. The chart uses port 587 with STARTTLS for better security (see **Security and reliability** below).
 
 ## Chart contents
 
@@ -109,9 +109,10 @@ helm template nextcloud ./helm -n nextcloud -f helm/values.yaml
 ## 6. Security and reliability
 
 - **Chart-level:** `readOnlyRootFilesystem`, `runAsNonRoot`, fixed image tag, 1Password for all secrets. Reverse-proxy config for overwrite URL/protocol.
-- **SMTP:** Prefer port **587** with **STARTTLS** (explicit upgrade from plain to TLS; modern standard and better security). Port 465 = implicit TLS (also fine). Default in this chart: 587 + STARTTLS. Gmail supports both.
+- **SMTP:** Use port **587** with **STARTTLS** for better security (explicit upgrade from plain to TLS; modern standard). Port 465 with implicit TLS is an acceptable alternative. This chart defaults to 587 + STARTTLS. Gmail supports both.
 - **Other improvements:** Enable 2FA and brute-force protection in the Nextcloud admin UI (Security & setup warnings). Rely on Postgres/Redis and Longhorn for durability; DB backups to be added to the chart later.
 - **HA:** 2 replicas; HPA 2–4; PDB minAvailable 1; RWX for `nextcloud-data` (and `nextcloud-html`); sticky sessions. Same data path can be shared with Immich.
+- **Affinity (soft):** Nextcloud prefers **database nodes** (nodeAffinity: `node-role: database`) to colocate with Postgres/Redis, and **pod anti-affinity** (topologyKey: hostname) to spread replicas across nodes. Both are soft preferences. When you move to dedicated database nodes you can remove the database-node preference or keep it as-is; keeping them soft works either way.
 
 ---
 
