@@ -116,6 +116,18 @@ nextcloud:
                 operator: In
                 values:
                   - database
+    # Prefer spreading pods across nodes (soft anti-affinity) for HA.
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - nextcloud
+            topologyKey: kubernetes.io/hostname
   internalDatabase:
     enabled: false
   externalDatabase:
