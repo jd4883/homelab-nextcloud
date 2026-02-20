@@ -1,0 +1,115 @@
+{{- $nc := .Values.nextcloud }}
+{{- $apps := $nc.defaultApps | default list }}
+{{- if and $apps (gt (len $apps) 0) }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nextcloud-install-default-apps
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: install-default-apps
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nextcloud
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: install-default-apps
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        runAsNonRoot: true
+      initContainers:
+        - name: wait-for-nextcloud
+          image: "{{ $nc.image.repository | default "nextcloud" }}/nextcloud:{{ $nc.image.tag | default "32.0.6-apache" }}"
+          command:
+            - sh
+            - -c
+            - |
+              for i in $(seq 1 30); do
+                if php /var/www/html/occ status 2>/dev/null; then exit 0; fi
+                echo "Waiting for Nextcloud to be ready... ($i/30)"
+                sleep 10
+              done
+              echo "Timeout waiting for Nextcloud"; exit 1
+          env:
+            - name: POSTGRES_HOST
+              value: {{ $nc.externalDatabase.host | quote }}
+            - name: POSTGRES_DB
+              value: {{ $nc.externalDatabase.database | quote }}
+            - name: REDIS_HOST
+              value: {{ $nc.externalRedis.host | quote }}
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-db
+                  key: db-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-db
+                  key: db-password
+            - name: REDIS_HOST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-redis
+                  key: redis-password
+          volumeMounts:
+            - name: config
+              mountPath: /var/www/html/config
+              readOnly: true
+      containers:
+        - name: install-apps
+          image: "{{ $nc.image.repository | default "nextcloud" }}/nextcloud:{{ $nc.image.tag | default "32.0.6-apache" }}"
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              for app in {{ join " " $apps }}; do
+                echo "Installing app: $app"
+                php /var/www/html/occ app:install "$app" || true
+              done
+              echo "Done installing default apps."
+          env:
+            - name: POSTGRES_HOST
+              value: {{ $nc.externalDatabase.host | quote }}
+            - name: POSTGRES_DB
+              value: {{ $nc.externalDatabase.database | quote }}
+            - name: REDIS_HOST
+              value: {{ $nc.externalRedis.host | quote }}
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-db
+                  key: db-username
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-db
+                  key: db-password
+            - name: REDIS_HOST_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: nextcloud-redis
+                  key: redis-password
+          volumeMounts:
+            - name: config
+              mountPath: /var/www/html/config
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: nextcloud-config
+{{- end }}
