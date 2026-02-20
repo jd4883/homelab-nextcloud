@@ -1,0 +1,20 @@
+apiVersion: v2
+name: nextcloud
+description: Nextcloud on Kubernetes (official chart + External Secrets from 1Password). External PostgreSQL and Redis; deploy DB/Redis via operators and connect later.
+version: 0.1.0
+appVersion: "32.0.6"
+keywords:
+  - nextcloud
+  - storage
+  - files
+  - caldav
+  - carddav
+home: https://nextcloud.com
+sources:
+  - https://github.com/nextcloud/helm
+  - https://github.com/nextcloud/docker
+dependencies:
+  - name: nextcloud
+    version: "8.9.1"
+    repository: https://nextcloud.github.io/helm/
+  # Secrets: External Secrets (templates in this chart). No onepassworditem; granular control per secret from 1Password.

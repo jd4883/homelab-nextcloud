@@ -1,0 +1,240 @@
+# Nextcloud – official chart + External Secrets (1Password). Postgres/Redis in namespaces postgresql/redis.
+# Auth: basic (Nextcloud). RWX for nextcloud-data (shared with Immich). HA: 2 replicas, scale 2–4, PDB minAvailable 1.
+
+nextcloud:
+  fullnameOverride: nextcloud
+  image:
+    tag: 32.0.6-apache
+  replicaCount: 2
+  autoscaling:
+    maxReplicas: 4
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    path: /
+    pathType: Prefix
+    hosts:
+      - nextcloud.expectedbehaviors.com
+      - cloud.expectedbehaviors.com
+      - files.expectedbehaviors.com
+      - sync.expectedbehaviors.com
+      - drive.expectedbehaviors.com
+      - nc.expectedbehaviors.com
+    annotations:
+      external-dns.alpha.kubernetes.io/hostname: nextcloud.expectedbehaviors.com,cloud.expectedbehaviors.com,files.expectedbehaviors.com,sync.expectedbehaviors.com,drive.expectedbehaviors.com,nc.expectedbehaviors.com
+      nginx.ingress.kubernetes.io/proxy-body-size: 16G
+      nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+      nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+      nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+      nginx.ingress.kubernetes.io/affinity: "cookie"
+      nginx.ingress.kubernetes.io/affinity-mode: "persistent"
+      nginx.ingress.kubernetes.io/server-snippet: |-
+        rewrite ^/.well-known/webfinger /public.php?service=webfinger last;
+        rewrite ^/.well-known/host-meta /public.php?service=host-meta last;
+        rewrite ^/.well-known/host-meta.json /public.php?service=host-meta-json;
+        location = /.well-known/carddav {
+          return 301 $scheme://$host/remote.php/dav;
+        }
+        location = /.well-known/caldav {
+          return 301 $scheme://$host/remote.php/dav;
+        }
+        location = /robots.txt {
+          allow all;
+          log_not_found off;
+          access_log off;
+        }
+        location ~ ^/(?:build|tests|config|lib|3rdparty|templates|data)/ {
+          deny all;
+        }
+        location ~ ^/(?:autotest|occ|issue|indie|db_|console) {
+          deny all;
+        }
+    tls: []
+  nextcloud:
+    host: nextcloud.expectedbehaviors.com
+    configs:
+      overwrite.config.php: |
+        <?php
+        $CONFIG['overwrite']['cli']['url'] = 'https://nextcloud.expectedbehaviors.com';
+    # Trusted domains (must include all ingress hosts)
+    trustedDomains:
+      - nextcloud.expectedbehaviors.com
+      - cloud.expectedbehaviors.com
+      - files.expectedbehaviors.com
+      - sync.expectedbehaviors.com
+      - drive.expectedbehaviors.com
+      - nc.expectedbehaviors.com
+    existingSecret:
+      enabled: true
+      secretName: nextcloud-admin
+      usernameKey: nextcloud-username
+      passwordKey: nextcloud-password
+      smtpUsernameKey: smtp-username
+      smtpPasswordKey: smtp-password
+      smtpHostKey: smtp-host
+    mail:
+      enabled: true
+      fromAddress: expectedbehaviors
+      domain: gmail.com
+      smtp:
+        port: 587
+        secure: tls   # STARTTLS (preferred over 465/ssl)
+        authtype: LOGIN
+    extraEnv:
+      - name: SMTP_NAME
+        valueFrom:
+          secretKeyRef:
+            name: nextcloud-smtp
+            key: smtp-username
+      - name: SMTP_PASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: nextcloud-smtp
+            key: smtp-password
+      - name: SMTP_HOST
+        valueFrom:
+          secretKeyRef:
+            name: nextcloud-smtp
+            key: smtp-host
+    extraSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      runAsNonRoot: true
+      readOnlyRootFilesystem: true
+    podSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+      runAsNonRoot: true
+  affinity:
+    nodeAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          preference:
+            matchExpressions:
+              - key: node-role
+                operator: In
+                values:
+                  - database
+    # Prefer spreading pods across nodes (soft anti-affinity) for HA.
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                    - nextcloud
+            topologyKey: kubernetes.io/hostname
+  internalDatabase:
+    enabled: false
+  externalDatabase:
+    enabled: true
+    type: postgresql
+    existingSecret:
+      enabled: true
+      secretName: nextcloud-db
+      usernameKey: db-username
+      passwordKey: db-password
+    host: "postgresql-rw.postgresql.svc.cluster.local"
+    database: nextcloud
+    user: nextcloud
+    password: ""
+  mariadb:
+    enabled: false
+  postgresql:
+    enabled: false
+  externalRedis:
+    enabled: true
+    port: "6379"
+    existingSecret:
+      enabled: true
+      secretName: nextcloud-redis
+      passwordKey: redis-password
+    host: "redis-master.redis.svc.cluster.local"
+    password: ""
+  redis:
+    enabled: false
+  phpConfigs:
+    zz-upload-and-memory.ini: |-
+      upload_max_filesize=16G
+      post_max_size=16G
+      memory_limit=512M
+      max_execution_time=3600
+      max_input_time=3600
+  persistence:
+    enabled: true
+    existingClaim: nextcloud-html
+    nextcloudData:
+      enabled: true
+      existingClaim: nextcloud-data
+  podAnnotations:
+    secret.reloader.stakater.com/reload: "nextcloud-admin,nextcloud-db,nextcloud-redis,nextcloud-smtp"
+  resources:
+    requests:
+      cpu: 500m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  cronjob:
+    enabled: true
+    type: cronjob
+    cronjob:
+      schedule: "*/5 * * * *"
+      resources:
+        requests:
+          cpu: 100m
+          memory: 128Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
+  phpClientHttpsFix:
+    enabled: true
+    protocol: https
+  # Install after first deploy (README §Apps): calendar, contacts, mail, notes, twofactor_totp
+  defaultApps:
+    - calendar
+    - contacts
+    - mail
+    - notes
+    - twofactor_totp
+
+externalSecrets:
+  admin:
+    enabled: true
+    itemTitle: nextcloud-admin
+    refreshInterval: 1h
+    secretStoreRef:
+      name: onepassword-connect
+      kind: ClusterSecretStore
+    data: {}
+  db:
+    enabled: true
+    itemTitle: postgresql
+    refreshInterval: 1h
+    secretStoreRef:
+      name: onepassword-connect
+      kind: ClusterSecretStore
+    data: {}
+  redis:
+    enabled: true
+    itemTitle: redis
+    refreshInterval: 1h
+    secretStoreRef:
+      name: onepassword-connect
+      kind: ClusterSecretStore
+    data: {}
+  smtp:
+    enabled: true
+    itemTitle: gmail-ticket-system
+    refreshInterval: 1h
+    secretStoreRef:
+      name: onepassword-connect
+      kind: ClusterSecretStore
+    data:
+      smtpUsername: { property: "username" }
+      smtpPassword: { property: "nextcloud_app_password" }
+      smtpHost: { property: "host" }
