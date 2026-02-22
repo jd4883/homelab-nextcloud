@@ -11,7 +11,6 @@ on:
     branches: [main]
     paths:
       - 'helm/Chart.yaml'
-      - 'helm/Chart.lock'
       - 'helm/values.yaml'
       - 'helm/README.md'
       - 'helm/charts/**'
