@@ -2,3 +2,5 @@ helm/charts/
 helm/Chart.lock
 PR_DESCRIPTION*.md
 .DS_Store
+requirements.lock
+helm/requirements.lock
