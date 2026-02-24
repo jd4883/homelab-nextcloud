@@ -1,6 +1,6 @@
-helm/charts/
-helm/Chart.lock
+deploy/helm/charts/
+deploy/helm/Chart.lock
 PR_DESCRIPTION*.md
 .DS_Store
 requirements.lock
-helm/requirements.lock
+deploy/helm/requirements.lock

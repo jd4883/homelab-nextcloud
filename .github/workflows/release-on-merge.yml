@@ -10,10 +10,10 @@ on:
   push:
     branches: [main]
     paths:
-      - 'helm/Chart.yaml'
-      - 'helm/values.yaml'
-      - 'helm/README.md'
-      - 'helm/charts/**'
+      - 'deploy/helm/Chart.yaml'
+      - 'deploy/helm/values.yaml'
+      - 'deploy/helm/README.md'
+      - 'deploy/helm/charts/**'
   workflow_dispatch:
 
 concurrency: release-on-merge
@@ -29,7 +29,7 @@ jobs:
           version: "v3.14.0"
       - name: Lint chart
         run: |
-          cd helm
+          cd deploy/helm
           helm dependency update .
           helm lint .
 
