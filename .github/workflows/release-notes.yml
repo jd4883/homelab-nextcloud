@@ -34,4 +34,4 @@ jobs:
           openai_api_key: ${{ secrets.OPENAI_API_KEY }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           release_tag: ${{ github.event.inputs.release_tag }}
-          prompt_instruction: "Include concrete datapoints: chart version, Nextcloud version, migration notes, breaking changes, and key values (PVCs, ingress, PHP)."
+          prompt_instruction: "Include concrete datapoints: chart version, Nextcloud version, migration notes, breaking changes, and key values (storage, PHP, cron)."
