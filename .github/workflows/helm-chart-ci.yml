@@ -1,0 +1,49 @@
+name: Helm chart CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'deploy/helm/Chart.yaml'
+      - 'deploy/helm/values.yaml'
+      - 'deploy/helm/values/**'
+      - 'deploy/helm/README.md'
+      - 'deploy/helm/.helmignore'
+      - 'deploy/helm/templates/**'
+      - 'deploy/helm/CHANGELOG.md'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'deploy/helm/Chart.yaml'
+      - 'deploy/helm/values.yaml'
+      - 'deploy/helm/values/**'
+      - 'deploy/helm/README.md'
+      - 'deploy/helm/.helmignore'
+      - 'deploy/helm/templates/**'
+      - 'deploy/helm/CHANGELOG.md'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: 'Release tag override (e.g. nextcloud-v1.0.0)'
+        required: false
+
+concurrency: helm-chart-nextcloud
+
+jobs:
+  ci:
+    permissions:
+      contents: write
+      pull-requests: read
+    uses: expectedbehaviors/github-actions/.github/workflows/helm-chart-ci.yml@main
+    secrets: inherit
+    with:
+      chart_path: deploy/helm
+      tag_prefix: nextcloud-v
+      helm_repositories: |
+        bjw-s=https://bjw-s-labs.github.io/helm-charts
+        expectedbehaviors-op=https://expectedbehaviors.github.io/OnePasswordItem-helm
+      publish_enabled: false
+      release_notes_enabled: true
+      release_tag: ${{ github.event.inputs.release_tag || '' }}
