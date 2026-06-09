@@ -1,6 +1,8 @@
 # Nextcloud (Kubernetes)
 
-Helm chart in **helm/**; Argo CD uses path **helm**. This chart wraps the [official Nextcloud Helm chart](https://github.com/nextcloud/helm) with **External Secrets** (1Password) and configures **external PostgreSQL** and **external Redis**. Deploy into the **nextcloud** namespace. **Auth:** basic (Nextcloud login); OIDC is a future step—**nginx OIDC is bypassed** for this ingress so requests go straight to Nextcloud. **TLS** by nginx; **persistence** via existing PVCs `nextcloud-html` and `nextcloud-data` (RWX for HA and to share data path with e.g. Immich). **HA:** 2 replicas, HPA 2–4, PDB minAvailable 1, sticky sessions. Image: fixed tag (32.0.6-apache).
+Values-only instantiation for Argo CD. Chart: [expectedbehaviors/nextcloud](https://expectedbehaviors.github.io/nextcloud). This repo supplies `deploy/helm/values.yaml` only.
+
+Homelab-specific values for the public chart, which wraps the [official Nextcloud Helm chart](https://github.com/nextcloud/helm) with **External Secrets** (1Password), **HPA**, **PDB**, and a post-install Job for default apps. Argo CD uses path **`deploy/helm`**. Deploy into the **nextcloud** namespace. **Auth:** basic (Nextcloud login); OIDC is a future step—**nginx OIDC is bypassed** for this ingress so requests go straight to Nextcloud. **TLS** by nginx; **persistence** via existing PVCs `nextcloud-html` and `nextcloud-data` (RWX for HA and to share data path with e.g. Immich). **HA:** 2 replicas, HPA 2–4, PDB minAvailable 1, sticky sessions. Image: fixed tag (32.0.6-apache).
 
 ---
 
@@ -48,13 +50,17 @@ Use the **exact 1Password field labels** in the “Secrets you need” table abo
 **Gmail SMTP (gmail-ticket-system)**  
 SMTP is enabled by default from 1Password item **gmail-ticket-system**: field `username` (e.g. expectedbehaviors@gmail.com), `nextcloud_app_password`, and `host` (e.g. smtp.gmail.com). extraEnv injects these from the nextcloud-smtp secret; Reloader includes nextcloud-smtp. The chart uses port 587 with STARTTLS for better security (see **Security and reliability** below).
 
-## Chart contents
+## Chart contents (public chart)
+
+The public [expectedbehaviors/nextcloud](https://expectedbehaviors.github.io/nextcloud) chart renders:
 
 - **Nextcloud app:** Upstream `nextcloud/nextcloud`, ingress, persistence (existingClaims), cronjob, security context. **Resources:** requests 500m/512Mi, limits 1 CPU/1Gi; cronjob 100m/128Mi–200m/256Mi.
 - **HA:** 2 replicas, **HPA** min 2 / max 4 (CPU 70%, memory 80%), **PDB** minAvailable 1. **Ingress:** sticky sessions (cookie, persistent) for multi-replica. **Affinity:** soft preference for nodes with `node-role=database` (for when you add dedicated DB nodes).
 - **Secrets:** External Secrets (sync wave -1) from 1Password: nextcloud-admin, nextcloud-db, nextcloud-redis, nextcloud-smtp. ClusterSecretStore required.
 - **External DB/Redis:** Chart does not deploy them; use Postgres cluster in namespace **postgresql** and Redis in **redis**. One operator per cluster; create DB `nextcloud` and user, then point this chart at the cluster endpoints.
 - **Reloader:** Pods reload when the four secrets change.
+
+This repo holds homelab values only — no local `Chart.yaml` or `templates/`.
 
 ---
 
@@ -87,13 +93,26 @@ Argo CD is configured **only** in the central config: **`homelab/helm/core/argoc
 3. Add Redis password to the **redis** 1Password item if required.
 4. Create **nextcloud-admin**, **postgresql**, **redis**, and **gmail-ticket-system** 1Password items with the exact field labels from “Secrets you need” (username, password, etc.).
 5. Confirm `externalDatabase.host` and `externalRedis.host` in values (defaults assume namespaces `postgresql` and `redis`).
-6. Uncomment the nextcloud application block in **config.yaml** (see §3), apply the Argo CD config, then sync—or run `helm upgrade --install nextcloud ./helm -n nextcloud -f helm/values.yaml` manually.
+6. Uncomment the nextcloud application block in **config.yaml** (see §3), apply the Argo CD config, then sync—or install from the public chart manually.
 
 Render and validate:
 
+> `helm repo add nextcloud https://expectedbehaviors.github.io/nextcloud`
+> `helm repo update`
+> `helm template release nextcloud/nextcloud -n nextcloud -f deploy/helm/values.yaml`
+
+Until the public chart index is published, render from the sibling chart source:
+
 ```bash
-helm template nextcloud ./helm -n nextcloud -f helm/values.yaml
+helm dependency update helm/helm-charts/charts/nextcloud
+helm template release helm/helm-charts/charts/nextcloud -n nextcloud -f deploy/helm/values.yaml
 ```
+
+| Check | Result |
+|-------|--------|
+| ExternalSecrets (admin, db, redis, smtp) | ✅ |
+| PDB `minAvailable: 1` | ✅ |
+| Ingress hosts (six homelab hostnames) | ✅ |
 
 ---
 
@@ -139,7 +158,7 @@ helm template nextcloud ./helm -n nextcloud -f helm/values.yaml
 
 ## 11. Apps: default list and how to add more
 
-- **Default apps:** The chart defines **defaultApps** in values (`calendar`, `contacts`, `mail`, `notes`, `twofactor_totp`). A **post-install Helm hook Job** (see **templates/jobs.yaml**) runs after install/upgrade and installs each app via `occ app:install`. Edit `nextcloud.defaultApps` in values to add or remove apps; the Job runs on the next install/upgrade.
+- **Default apps:** The chart defines **defaultApps** in values (`calendar`, `contacts`, `mail`, `notes`, `twofactor_totp`). A **post-install Helm hook Job** in the public chart runs after install/upgrade and installs each app via `occ app:install`. Edit `nextcloud.defaultApps` in `deploy/helm/values.yaml` to add or remove apps; the Job runs on the next install/upgrade.
 - **Adding more apps later:** (1) **Web UI:** Settings → Apps → enable/install. (2) **CLI:** `kubectl exec deploy/nextcloud -n nextcloud -- sudo -u www-data php occ app:install <appid>`. App IDs: `occ app:list` or the Apps page.
 
 ## 12. Baking in config from jd4883/nextcloud (git@github.com:jd4883/nextcloud.git)
@@ -151,7 +170,7 @@ We bake static config from your old repo into the chart via **values** (ConfigMa
 1. **Clone the repo:** `git clone git@github.com:jd4883/nextcloud.git` (or use a local copy).
 2. **Strip credentials and machine-specifics:** Remove or do not copy: `instanceid`, `passwordsalt`, `secret`, `dbpassword` / `dbuser` / `dbhost` (we inject these), any SMTP passwords, and any other secrets. Replace those with placeholders or omit; the chart and External Secrets provide the real values.
 3. **Map content into the chart:**
-   - **config.php** (or equivalent): Add any **non-secret** `$CONFIG` keys as extra entries under `nextcloud.nextcloud.configs` in **helm/values.yaml**. Each file is a snippet; use a unique key (e.g. `custom.config.php` or `legacy-snippet.config.php`) and paste the PHP array entries you want. Nextcloud merges multiple config files.
+   - **config.php** (or equivalent): Add any **non-secret** `$CONFIG` keys as extra entries under `nextcloud.nextcloud.configs` in **deploy/helm/values.yaml**. Each file is a snippet; use a unique key (e.g. `custom.config.php` or `legacy-snippet.config.php`) and paste the PHP array entries you want. Nextcloud merges multiple config files.
    - **php.ini** (or container PHP overrides): Add directives under `nextcloud.phpConfigs` in values (e.g. `zz-legacy.ini`) so they are applied in the container.
    - **nginx** (if the repo had container nginx): We use ingress nginx, so only **location/server snippets** that still apply (e.g. extra rewrites, headers) should be merged into the ingress `server-snippet` in values. Any repo-specific nginx config that is obsolete for ingress can be skipped.
 4. **Optional ConfigMap for many files:** If the repo has many static files you want mounted (e.g. multiple config snippets), create a ConfigMap from the repo (with credentials stripped) and we can add support for mounting it (e.g. `extraVolumes` / `extraVolumeMounts` if the official chart supports it, or a small wrapper). For a few snippets, using `configs` and `phpConfigs` in values is enough.
@@ -169,4 +188,4 @@ Without (1)–(4) we cannot map the repo into the chart’s `configs`, `phpConfi
 
 ## 13. CI (GitHub Actions)
 
-Same pattern as the atlantis chart: **Release on merge to main** (bump patch, tag, GitHub Release) and **Release notes from PR** (OpenAI summary). Paths under **helm/** only; add **OPENAI_API_KEY** in repo Secrets for release notes. See **.github/workflows/README.md**.
+This repo is **values-only** — no chart release CI. Chart publishing lives in [expectedbehaviors/nextcloud](https://github.com/expectedbehaviors/nextcloud). Root `.github/workflows/` may remain for repo hygiene; it does not publish a wrapper chart.
