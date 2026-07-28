@@ -1,0 +1,26 @@
+flowchart LR
+  classDef ext fill:#eef4ff,stroke:#5b8def,color:#12233f;
+  classDef app fill:#e9f7ef,stroke:#3fa06a,color:#0f2d1e;
+  classDef store fill:#fff4e5,stroke:#e0932f,color:#3d2a08;
+  classDef sec fill:#fdecef,stroke:#d2506b,color:#3d0d18;
+  classDef dep fill:#f3edff,stroke:#8a63d2,color:#241338;
+  subgraph EDGE["Ingress (nginx)"]
+    direction TB
+    HOSTS["nextcloud.expectedbehaviors.com<br/>cloud.expectedbehaviors.com<br/>files.expectedbehaviors.com<br/>sync.expectedbehaviors.com<br/>+2 more"]:::ext
+  end
+  subgraph NS["namespace: nextcloud"]
+    direction TB
+    APP["nextcloud<br/>chart 1.0.0"]:::app
+    PVC[("existing PVCs<br/>nextcloud-data")]:::store
+  end
+  subgraph SHARED["shared cluster services"]
+    direction TB
+    PG[("PostgreSQL<br/>postgresql-rw.postgresql")]:::dep
+    RD[("Redis<br/>redis-master.redis")]:::dep
+  end
+  CHART["Helm chart<br/>expectedbehaviors/nextcloud"]:::dep
+  CHART -. "chart source" .-> APP
+  HOSTS --> APP
+  APP --> PVC
+  APP --> PG
+  APP --> RD
