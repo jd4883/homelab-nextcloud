@@ -6,6 +6,12 @@ Homelab-specific values for the public chart, which wraps the [official Nextclou
 
 ---
 
+## 🗺️ Topology
+
+![nextcloud topology](docs/img/topology.svg)
+
+<sub>Generated from this repo’s `values.yaml`, `Chart.yaml` and `argocd/` manifests. Source: [`docs/img/topology.mmd`](docs/img/topology.mmd). Deployed by Argo CD into namespace `nextcloud`.</sub>
+
 ## Pre-deploy summary
 
 ### DNS names (ingress + trusted domains)
