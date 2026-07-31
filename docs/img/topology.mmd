@@ -8,19 +8,20 @@ flowchart LR
     direction TB
     HOSTS["nextcloud.expectedbehaviors.com<br/>cloud.expectedbehaviors.com<br/>files.expectedbehaviors.com<br/>sync.expectedbehaviors.com<br/>+2 more"]:::ext
   end
-  subgraph NS["namespace: nextcloud"]
+  subgraph NS["nextcloud"]
     direction TB
-    APP["nextcloud<br/>chart 1.0.0"]:::app
-    PVC[("existing PVCs<br/>nextcloud-data")]:::store
+    APP["nextcloud"]:::app
+  end
+  subgraph VOLS["persistent volumes"]
+    direction LR
+    V0[("nextcloud-data")]:::store
   end
   subgraph SHARED["shared cluster services"]
     direction TB
     PG[("PostgreSQL<br/>postgresql-rw.postgresql")]:::dep
     RD[("Redis<br/>redis-master.redis")]:::dep
   end
-  CHART["Helm chart<br/>expectedbehaviors/nextcloud"]:::dep
-  CHART -. "chart source" .-> APP
   HOSTS --> APP
-  APP --> PVC
+  APP --> VOLS
   APP --> PG
   APP --> RD
