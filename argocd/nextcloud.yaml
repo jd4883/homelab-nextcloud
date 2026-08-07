@@ -1,0 +1,12 @@
+chart: nextcloud
+project: nextcloud
+namespaceLabels:
+  pod-security.kubernetes.io/audit: privileged
+  pod-security.kubernetes.io/enforce: privileged
+  pod-security.kubernetes.io/warn: privileged
+helmRepoURL: https://expectedbehaviors.github.io/nextcloud
+helmChartRevision: "1.0.0"
+targetRevision: HEAD
+valuesRef: values
+helmValueFiles:
+  - $values/deploy/helm/values.yaml
